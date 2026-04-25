@@ -2,59 +2,77 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
+    <div class="col-md-7">
         <div class="card shadow-sm border-0 rounded-4 mt-4">
             <div class="card-header bg-dark text-white text-center py-3 rounded-top-4">
-                <h4 class="m-0 fw-bold">Secure Checkout</h4>
+                <h4 class="m-0 fw-bold">Secure Checkout (PhonePe / UPI)</h4>
             </div>
             <div class="card-body p-4">
-                <h5 class="fw-bold mb-3">Booking Summary</h5>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Turf:</span>
-                    <span class="fw-bold">{{ booking.turf_name }}</span>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Date & Time:</span>
-                    <span>{{ booking.date }} | {{ booking.time_slot }}</span>
-                </div>
-                <hr>
-                
-                <!-- Promo Code -->
-                <form method="GET" action="/checkout" class="mb-3 d-flex">
-                    <input type="text" name="promo" class="form-control form-control-sm me-2" placeholder="Promo Code (Try WELCOME50)" value="{{ promo }}">
-                    <button type="submit" class="btn btn-dark btn-sm px-3">Apply</button>
-                </form>
+                <div class="row">
+                    <!-- Left Column: Summary -->
+                    <div class="col-md-6 border-end pe-md-4">
+                        <h5 class="fw-bold mb-3">Booking Summary</h5>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Turf:</span>
+                            <span class="fw-bold">{{ booking.turf_name }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Date & Time:</span>
+                            <span>{{ booking.date }} | {{ booking.time_slot }}</span>
+                        </div>
+                        <hr>
+                        
+                        <!-- Promo Code -->
+                        <form method="GET" action="/checkout" class="mb-3 d-flex">
+                            <input type="text" name="promo" class="form-control form-control-sm me-2" placeholder="Promo Code" value="{{ promo }}">
+                            <button type="submit" class="btn btn-dark btn-sm px-3">Apply</button>
+                        </form>
 
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Base Price:</span>
-                    <span>₹{{ booking.price }}</span>
-                </div>
-                {% if discount > 0 %}
-                <div class="d-flex justify-content-between mb-2 text-success">
-                    <span>Discount Applied:</span>
-                    <span>- ₹{{ discount }}</span>
-                </div>
-                {% endif %}
-                <div class="d-flex justify-content-between mb-4 fs-5 fw-bold bms-text">
-                    <span>Total Amount:</span>
-                    <span>₹{{ final_price }}</span>
-                </div>
-                
-                <h6 class="fw-bold text-muted small text-uppercase mb-3">Payment Details</h6>
-                <form method="POST">
-                    <div class="mb-3">
-                        <input type="text" class="form-control bg-light" placeholder="Card Number (Mock)" required>
-                    </div>
-                    <div class="row mb-4">
-                        <div class="col-6">
-                            <input type="text" class="form-control bg-light" placeholder="MM/YY" required>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Base Price:</span>
+                            <span>₹{{ booking.price }}</span>
                         </div>
-                        <div class="col-6">
-                            <input type="text" class="form-control bg-light" placeholder="CVV" required>
+                        {% if discount > 0 %}
+                        <div class="d-flex justify-content-between mb-2 text-success">
+                            <span>Discount:</span>
+                            <span>- ₹{{ discount }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="d-flex justify-content-between mb-4 fs-5 fw-bold bms-text">
+                            <span>Amount to Pay:</span>
+                            <span>₹{{ final_price }}</span>
                         </div>
                     </div>
-                    <button type="submit" class="btn bms-btn btn-lg w-100 fw-bold" onclick="this.innerHTML='Processing...';">Pay ₹{{ final_price }}</button>
-                </form>
+
+                    <!-- Right Column: Real UPI Integration -->
+                    <div class="col-md-6 ps-md-4 text-center">
+                        <h6 class="fw-bold text-muted small text-uppercase mb-2">Scan & Pay via any app</h6>
+                        <div class="d-flex justify-content-center mb-2 gap-2">
+                            <span class="badge bg-primary">PhonePe</span>
+                            <span class="badge bg-success">GPay</span>
+                            <span class="badge bg-info text-dark">Paytm</span>
+                        </div>
+                        
+                        <!-- Dynamic UPI QR Code using Google API -->
+                        <div class="bg-light p-3 rounded mb-3 d-inline-block border">
+                            <img src="https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl={{ upi_url | urlencode }}" alt="UPI QR Code">
+                        </div>
+                        
+                        <p class="small text-muted mb-1">Scan this QR code with your phone to pay exactly <strong>₹{{ final_price }}</strong></p>
+                        <p class="small text-muted mb-3">UPI ID: <strong>{{ business_upi }}</strong></p>
+
+                        <hr>
+                        
+                        <form method="POST">
+                            <div class="mb-3 text-start">
+                                <label class="form-label small fw-bold">Step 2: Enter 12-Digit UTR / Transaction ID</label>
+                                <input type="text" name="utr_number" class="form-control bg-light" placeholder="e.g. 301234567890" required minlength="8">
+                                <small class="text-muted" style="font-size: 0.7rem;">You will find this in your PhonePe/GPay history after paying.</small>
+                            </div>
+                            <button type="submit" class="btn bms-btn btn-lg w-100 fw-bold">Confirm Payment</button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

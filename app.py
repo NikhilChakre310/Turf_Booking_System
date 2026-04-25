@@ -11,6 +11,8 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "fallback_dev_secret_key_123")
 DB_NAME = "turf.db"
+# Get the UPI ID from environment, or use a placeholder
+BUSINESS_UPI_ID = os.environ.get("UPI_ID", "your-business-upi@ybl")
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -36,6 +38,7 @@ def init_db():
                     time_slot TEXT NOT NULL,
                     total_amount INTEGER DEFAULT 0,
                     qr_data TEXT,
+                    utr_number TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(turf_id) REFERENCES turfs(id))''')
     
@@ -71,6 +74,11 @@ def upgrade_db():
         conn.execute("ALTER TABLE bookings ADD COLUMN qr_data TEXT")
     except:
         pass # Columns already exist
+    
+    try:
+        conn.execute("ALTER TABLE bookings ADD COLUMN utr_number TEXT")
+    except:
+        pass # Column already exists
     conn.commit()
     conn.close()
 
@@ -200,14 +208,23 @@ def checkout():
         final_price -= discount
         flash('WELCOME50 Promo applied! 50% off.', 'success')
 
+    # Generate UPI URI string
+    merchant_name = "BookMyArena"
+    upi_url = f"upi://pay?pa={BUSINESS_UPI_ID}&pn={merchant_name}&am={final_price}&cu=INR"
+
     if request.method == 'POST':
-        # Mock payment processing
+        utr_number = request.form.get('utr_number', '')
+        
+        if not utr_number or len(utr_number) < 8:
+            flash('Please enter a valid UTR / Transaction ID from your payment app.', 'danger')
+            return redirect(request.url)
+
         conn = get_db()
         qr_data = f"BMA-{session['user_id']}-{booking['turf_id']}-{booking['date']}-{booking['time_slot'].replace(' ', '')}"
         
-        conn.execute('''INSERT INTO bookings (user_id, turf_id, date, time_slot, total_amount, qr_data) 
-                        VALUES (?, ?, ?, ?, ?, ?)''',
-                     (session['user_id'], booking['turf_id'], booking['date'], booking['time_slot'], final_price, qr_data))
+        conn.execute('''INSERT INTO bookings (user_id, turf_id, date, time_slot, total_amount, qr_data, utr_number) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                     (session['user_id'], booking['turf_id'], booking['date'], booking['time_slot'], final_price, qr_data, utr_number))
         conn.commit()
         conn.close()
         
@@ -215,7 +232,7 @@ def checkout():
         flash('Payment Successful! Your ticket has been generated.', 'success')
         return redirect(url_for('dashboard'))
 
-    return render_template('checkout.html', booking=booking, final_price=final_price, discount=discount, promo=promo)
+    return render_template('checkout.html', booking=booking, final_price=final_price, discount=discount, promo=promo, upi_url=upi_url, business_upi=BUSINESS_UPI_ID)
 
 @app.route('/review/<int:turf_id>', methods=['POST'])
 def add_review(turf_id):
@@ -289,7 +306,7 @@ def cancel_booking(id):
         else:
             conn.execute("DELETE FROM bookings WHERE id = ?", (id,))
             conn.commit()
-            flash('Booking cancelled successfully. Refund initiated.', 'success')
+            flash('Booking cancelled successfully. Refund initiated to original payment method.', 'success')
     except Exception as e:
         flash('Error processing cancellation.', 'danger')
 
@@ -314,16 +331,14 @@ def admin():
         conn.commit()
         flash('Turf added successfully!', 'success')
         
-    all_bookings = conn.execute('''SELECT b.id, u.name as user_name, t.name as turf_name, b.date, b.time_slot, b.total_amount 
+    all_bookings = conn.execute('''SELECT b.id, u.name as user_name, t.name as turf_name, b.date, b.time_slot, b.total_amount, b.utr_number 
                                    FROM bookings b
                                    JOIN users u ON b.user_id = u.id
                                    JOIN turfs t ON b.turf_id = t.id ORDER BY b.date DESC''').fetchall()
     turfs = conn.execute("SELECT * FROM turfs").fetchall()
     
-    # Analytics Data
     total_revenue = conn.execute("SELECT SUM(total_amount) as total FROM bookings").fetchone()['total'] or 0
     
-    # Bookings by Turf
     turf_stats = conn.execute('''SELECT t.name, COUNT(b.id) as count 
                                  FROM turfs t LEFT JOIN bookings b ON t.id = b.turf_id 
                                  GROUP BY t.id''').fetchall()
