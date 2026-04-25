@@ -3,9 +3,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "super_secret_turf_key"
+# Securely load the secret key from the environment, with a fallback for local testing
+app.secret_key = os.environ.get("SECRET_KEY", "fallback_dev_secret_key_123")
 DB_NAME = "turf.db"
 
 def init_db():
@@ -35,7 +40,7 @@ def init_db():
     
     c.execute("SELECT * FROM users WHERE email='admin@turf.com'")
     if not c.fetchone():
-        hashed_pw = generate_password_hash("admin123")
+        hashed_pw = generate_password_hash(os.environ.get("ADMIN_PASSWORD", "admin123"))
         c.execute("INSERT INTO users (name, email, password, is_admin) VALUES (?, ?, ?, ?)", 
                   ("Admin", "admin@turf.com", hashed_pw, 1))
         
@@ -54,6 +59,11 @@ def get_db():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
+
+# Ensure DB is initialized before first request
+with app.app_context():
+    if not os.path.exists(DB_NAME):
+        init_db()
 
 @app.route('/')
 def index():
@@ -155,7 +165,6 @@ def dashboard():
                                WHERE b.user_id = ? ORDER BY b.date DESC''', (session['user_id'],)).fetchall()
     conn.close()
     
-    # Calculate if cancellable (more than 24 hrs away)
     now = datetime.now()
     bookings_with_status = []
     for b in bookings:
@@ -229,6 +238,5 @@ def admin():
     return render_template('admin.html', bookings=all_bookings, turfs=turfs)
 
 if __name__ == '__main__':
-    if not os.path.exists(DB_NAME):
-        init_db()
-    app.run(debug=True)
+    # Use debug=False for production readiness
+    app.run(debug=os.environ.get("FLASK_DEBUG", "False").lower() == "true")
