@@ -1,34 +1,67 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row mb-4 align-items-center">
-    <div class="col-md-6">
-        <h2>Find & Book Turfs Near You</h2>
+<!-- Hero Carousel -->
+<div id="turfCarousel" class="carousel slide hero-carousel mb-4" data-bs-ride="carousel">
+  <div class="carousel-inner">
+    <div class="carousel-item active">
+      <img src="https://images.unsplash.com/photo-1518605368461-1e122b513364?auto=format&fit=crop&w=1200&q=80" class="d-block w-100" alt="Football">
+      <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
+        <h5>Play Under the Lights</h5>
+        <p>Book premium football turfs for your weekend matches.</p>
+      </div>
     </div>
-    <div class="col-md-6">
-        <form action="/" method="GET" class="d-flex">
-            <input type="text" name="search" class="form-control me-2" placeholder="Search by name or sport (e.g. Cricket)">
-            <button type="submit" class="btn btn-success">Search</button>
-        </form>
+    <div class="carousel-item">
+      <img src="https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=1200&q=80" class="d-block w-100" alt="Cricket">
+      <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
+        <h5>Box Cricket Tournaments</h5>
+        <p>Find the best pitches and gear up for the smash.</p>
+      </div>
     </div>
+  </div>
+  <button class="carousel-control-prev" type="button" data-bs-target="#turfCarousel" data-bs-slide="prev">
+    <span class="carousel-control-prev-icon"></span>
+  </button>
+  <button class="carousel-control-next" type="button" data-bs-target="#turfCarousel" data-bs-slide="next">
+    <span class="carousel-control-next-icon"></span>
+  </button>
 </div>
 
+<!-- Search Bar -->
+<div class="container search-bar-container mb-5">
+    <form action="/" method="GET" class="row g-2 align-items-center">
+        <div class="col-md-9">
+            <input type="text" name="search" class="form-control form-control-lg border-0 bg-light" placeholder="Search for Sports, Turfs, or Locations...">
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-bms btn-lg w-100">Search</button>
+        </div>
+    </form>
+</div>
+
+<!-- Recommended Turfs -->
+<h3 class="fw-bold mb-4">Recommended Turfs</h3>
 <div class="row">
     {% for turf in turfs %}
-    <div class="col-md-4 mb-4">
-        <div class="card h-100 shadow-sm">
-            <img src="{{ turf.image }}" class="card-img-top" alt="{{ turf.name }}" style="height: 200px; object-fit: cover;">
+    <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+        <div class="card turf-card shadow-sm h-100">
+            <div class="card-img-wrapper">
+                <span class="sport-badge">{{ turf.sport }}</span>
+                <img src="{{ turf.image }}" alt="{{ turf.name }}">
+            </div>
             <div class="card-body">
-                <h5 class="card-title">{{ turf.name }}</h5>
-                <p class="card-text text-muted mb-1">{{ turf.sport }}</p>
-                <p class="card-text fw-bold text-success">₹{{ turf.price }} / hour</p>
-                <a href="/turf/{{ turf.id }}" class="btn btn-outline-success w-100">View Details & Book</a>
+                <h5 class="card-title fw-bold text-truncate">{{ turf.name }}</h5>
+                <p class="card-text text-muted small mb-2">{{ turf.sport }} • Premium Turf</p>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <span class="fw-bold fs-5">₹{{ turf.price }}</span>
+                    <a href="/turf/{{ turf.id }}" class="btn btn-outline-bms btn-sm">Book</a>
+                </div>
             </div>
         </div>
     </div>
     {% else %}
-    <div class="col-12 text-center">
-        <p class="text-muted">No turfs found.</p>
+    <div class="col-12 text-center py-5">
+        <h4 class="text-muted">No turfs match your search.</h4>
     </div>
     {% endfor %}
 </div>

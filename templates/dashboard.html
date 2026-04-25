@@ -1,43 +1,59 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2 class="mb-4">My Bookings</h2>
+<div class="d-flex justify-content-between align-items-center mb-4 mt-3">
+    <h2 class="fw-bold m-0">My Tickets</h2>
+</div>
 
-<div class="card shadow-sm">
-    <div class="card-body">
+<div class="card shadow-sm border-0 rounded-3">
+    <div class="card-body p-0">
         {% if bookings %}
         <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="table-light">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="bg-light">
                     <tr>
-                        <th>Turf Name</th>
-                        <th>Sport</th>
-                        <th>Date</th>
-                        <th>Time Slot</th>
-                        <th>Amount</th>
-                        <th>Action</th>
+                        <th class="ps-4 py-3">Event/Turf</th>
+                        <th class="py-3">Date & Time</th>
+                        <th class="py-3">Amount Paid</th>
+                        <th class="py-3">Status</th>
+                        <th class="pe-4 py-3 text-end">Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for b in bookings %}
                     <tr>
-                        <td class="fw-bold">{{ b.name }}</td>
-                        <td>{{ b.sport }}</td>
-                        <td>{{ b.date }}</td>
-                        <td>{{ b.time_slot }}</td>
-                        <td>₹{{ b.price }}</td>
-                        <td>
-                            <a href="/cancel_booking/{{ b.id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to cancel this booking?');">Cancel</a>
+                        <td class="ps-4 py-3">
+                            <div class="fw-bold text-dark">{{ b.name }}</div>
+                            <small class="text-muted">{{ b.sport }}</small>
+                        </td>
+                        <td class="py-3">
+                            <div class="fw-semibold">{{ b.date }}</div>
+                            <small class="text-muted">{{ b.time_slot }}</small>
+                        </td>
+                        <td class="py-3 fw-bold">₹{{ b.price }}</td>
+                        <td class="py-3">
+                            <span class="badge bg-success bg-opacity-10 text-success px-2 py-1 rounded">Confirmed</span>
+                        </td>
+                        <td class="pe-4 py-3 text-end">
+                            <a href="/cancel_booking/{{ b.id }}" 
+                               class="btn btn-sm btn-outline-danger" 
+                               onclick="return confirm('You can only cancel if the slot is more than 24 hours away. Are you sure you want to attempt cancellation?');">
+                               Cancel Ticket
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        <div class="card-footer bg-white border-top text-muted small p-3">
+            <i class="bi bi-info-circle me-1"></i> <strong>Cancellation Policy:</strong> Tickets can only be cancelled up to 24 hours prior to the booked slot time.
+        </div>
         {% else %}
-        <p class="text-muted text-center my-4">You have no upcoming bookings.</p>
-        <div class="text-center">
-            <a href="/" class="btn btn-success">Browse Turfs</a>
+        <div class="text-center py-5">
+            <h4 class="text-muted mb-3">Looks empty here!</h4>
+            <p class="text-muted mb-4">You have no upcoming games. Time to plan one?</p>
+            <a href="/" class="btn btn-bms px-4 py-2">Explore Turfs</a>
         </div>
         {% endif %}
     </div>

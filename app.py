@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = "super_secret_turf_key"
@@ -12,14 +12,12 @@ DB_NAME = "turf.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Users table
     c.execute('''CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
                     is_admin INTEGER DEFAULT 0)''')
-    # Turfs table
     c.execute('''CREATE TABLE IF NOT EXISTS turfs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
@@ -27,7 +25,6 @@ def init_db():
                     price INTEGER NOT NULL,
                     image TEXT NOT NULL,
                     description TEXT)''')
-    # Bookings table
     c.execute('''CREATE TABLE IF NOT EXISTS bookings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
@@ -37,26 +34,24 @@ def init_db():
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(turf_id) REFERENCES turfs(id))''')
     
-    # Add an admin user if it doesn't exist
     c.execute("SELECT * FROM users WHERE email='admin@turf.com'")
     if not c.fetchone():
         hashed_pw = generate_password_hash("admin123")
         c.execute("INSERT INTO users (name, email, password, is_admin) VALUES (?, ?, ?, ?)", 
                   ("Admin", "admin@turf.com", hashed_pw, 1))
         
-    # Add some sample turfs
     c.execute("SELECT * FROM turfs")
     if not c.fetchone():
         sample_turfs = [
-            ("Green Arena", "Football", 1000, "https://images.unsplash.com/photo-1529900845347-1510af14c552?auto=format&fit=crop&w=400&q=80", "Premium 5v5 football turf with artificial grass."),
-            ("Smashers Ground", "Cricket", 800, "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=400&q=80", "Box cricket turf with high nets and bright lighting.")
+            ("Green Arena", "Football", 1000, "https://images.unsplash.com/photo-1529900845347-1510af14c552?auto=format&fit=crop&w=800&q=80", "Premium 5v5 football turf with artificial grass."),
+            ("Smashers Ground", "Cricket", 800, "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=800&q=80", "Box cricket turf with high nets and bright lighting."),
+            ("Elite Hoops", "Basketball", 1200, "https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80", "Indoor wooden court for professional basketball.")
         ]
         c.executemany("INSERT INTO turfs (name, sport, price, image, description) VALUES (?, ?, ?, ?, ?)", sample_turfs)
         
     conn.commit()
     conn.close()
 
-# Helper to connect to DB
 def get_db():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
@@ -132,7 +127,6 @@ def turf(id):
         date = request.form['date']
         time_slot = request.form['time_slot']
         
-        # Check double booking
         existing = conn.execute("SELECT * FROM bookings WHERE turf_id=? AND date=? AND time_slot=?", (id, date, time_slot)).fetchone()
         if existing:
             flash('This time slot is already booked!', 'danger')
@@ -143,7 +137,6 @@ def turf(id):
             flash('Booking confirmed! Payment to be collected at the venue.', 'success')
             return redirect(url_for('dashboard'))
             
-    # Get booked slots for today by default to show unavailability
     today = datetime.today().strftime('%Y-%m-%d')
     bookings = conn.execute("SELECT time_slot FROM bookings WHERE turf_id = ? AND date = ?", (id, today)).fetchall()
     booked_slots = [b['time_slot'] for b in bookings]
@@ -163,17 +156,40 @@ def dashboard():
                                JOIN turfs t ON b.turf_id = t.id 
                                WHERE b.user_id = ? ORDER BY b.date DESC''', (session['user_id'],)).fetchall()
     conn.close()
-    return render_template('dashboard.html', bookings=bookings)
+    
+    # Pass current time to template to evaluate 24hr rule visually
+    now = datetime.now()
+    return render_template('dashboard.html', bookings=bookings, now=now)
 
 @app.route('/cancel_booking/<int:id>')
 def cancel_booking(id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
+        
     conn = get_db()
-    conn.execute("DELETE FROM bookings WHERE id = ? AND user_id = ?", (id, session['user_id']))
-    conn.commit()
+    booking = conn.execute("SELECT date, time_slot FROM bookings WHERE id = ? AND user_id = ?", (id, session['user_id'])).fetchone()
+    
+    if booking:
+        try:
+            # Parse the booking's date and time
+            booking_dt_str = f"{booking['date']} {booking['time_slot']}"
+            booking_dt = datetime.strptime(booking_dt_str, "%Y-%m-%d %I:%M %p")
+            
+            # Check if it's within 24 hours
+            time_diff = booking_dt - datetime.now()
+            
+            if time_diff.total_seconds() < 24 * 3600 and time_diff.total_seconds() > 0:
+                flash('Cancellation Failed: You cannot cancel a booking within 24 hours of the slot time.', 'danger')
+            elif time_diff.total_seconds() <= 0:
+                flash('Cancellation Failed: This booking is in the past or currently active.', 'danger')
+            else:
+                conn.execute("DELETE FROM bookings WHERE id = ?", (id,))
+                conn.commit()
+                flash('Booking cancelled successfully.', 'success')
+        except Exception as e:
+            flash('Error processing cancellation time.', 'danger')
+            
     conn.close()
-    flash('Booking cancelled successfully.', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/admin', methods=['GET', 'POST'])
@@ -184,7 +200,6 @@ def admin():
         
     conn = get_db()
     if request.method == 'POST':
-        # Add Turf Logic
         name = request.form['name']
         sport = request.form['sport']
         price = request.form['price']
