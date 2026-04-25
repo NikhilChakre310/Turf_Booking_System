@@ -12,28 +12,72 @@
             <table class="table table-hover align-middle m-0">
                 <thead class="bg-light">
                     <tr>
-                        <th class="py-3 px-4">Turf Name</th>
-                        <th class="py-3">Sport</th>
+                        <th class="py-3 px-4">E-Ticket (QR)</th>
+                        <th class="py-3">Turf Details</th>
                         <th class="py-3">Date & Time</th>
-                        <th class="py-3">Amount</th>
+                        <th class="py-3">Amount Paid</th>
                         <th class="py-3">Status / Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for b in bookings %}
                     <tr>
-                        <td class="px-4 fw-bold">{{ b.name }}</td>
-                        <td><span class="badge bg-secondary">{{ b.sport }}</span></td>
+                        <td class="px-4">
+                            {% if b.qr_data %}
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data={{ b.qr_data }}" alt="QR Code" class="rounded shadow-sm">
+                            {% else %}
+                                <span class="badge bg-light text-dark border">No QR</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-bold">{{ b.name }}</div>
+                            <span class="badge bg-secondary">{{ b.sport }}</span>
+                        </td>
                         <td>
                             <div>{{ b.date }}</div>
                             <small class="text-muted">{{ b.time_slot }}</small>
                         </td>
-                        <td class="fw-bold text-dark">₹{{ b.price }}</td>
+                        <td class="fw-bold text-success">₹{{ b.total_amount }}</td>
                         <td>
                             {% if b.is_past %}
-                                <span class="badge bg-secondary">Completed</span>
+                                <span class="badge bg-secondary mb-2 d-block">Completed</span>
+                                <!-- Review Button -->
+                                <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#reviewModal{{ b.id }}">
+                                    Leave a Review
+                                </button>
+                                
+                                <!-- Review Modal -->
+                                <div class="modal fade" id="reviewModal{{ b.id }}" tabindex="-1">
+                                  <div class="modal-dialog">
+                                    <div class="modal-content">
+                                      <div class="modal-header">
+                                        <h5 class="modal-title fw-bold">Review {{ b.name }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                      </div>
+                                      <div class="modal-body">
+                                        <form action="/review/{{ b.turf_id }}" method="POST">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">Rating (1-5)</label>
+                                                <select class="form-select" name="rating" required>
+                                                    <option value="5">⭐⭐⭐⭐⭐ (5/5)</option>
+                                                    <option value="4">⭐⭐⭐⭐ (4/5)</option>
+                                                    <option value="3">⭐⭐⭐ (3/5)</option>
+                                                    <option value="2">⭐⭐ (2/5)</option>
+                                                    <option value="1">⭐ (1/5)</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">Comment</label>
+                                                <textarea class="form-control" name="comment" rows="3" required></textarea>
+                                            </div>
+                                            <button type="submit" class="btn bms-btn w-100">Submit Review</button>
+                                        </form>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
                             {% elif b.can_cancel %}
-                                <a href="/cancel_booking/{{ b.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Cancel this booking?');">Cancel</a>
+                                <a href="/cancel_booking/{{ b.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Cancel this booking? A refund will be initiated.');">Cancel</a>
                             {% else %}
                                 <span class="text-danger small fw-bold">Non-cancellable (Under 24h)</span>
                             {% endif %}
@@ -42,9 +86,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
-        <div class="card-footer bg-white text-muted small p-3">
-            <i class="fw-bold text-danger">Note:</i> Bookings cannot be cancelled if the slot is within 24 hours from the current time.
         </div>
         {% else %}
         <div class="text-center py-5">

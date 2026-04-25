@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row bg-white p-4 rounded shadow-sm mb-5">
+<div class="row bg-white p-4 rounded shadow-sm mb-4">
     <div class="col-md-7 mb-4 mb-md-0">
         <img src="{{ turf.image }}" alt="{{ turf.name }}" class="img-fluid rounded shadow-sm w-100" style="max-height: 400px; object-fit: cover;">
     </div>
@@ -29,14 +29,30 @@
                     </select>
                 </div>
             </div>
-            
-            <div class="alert bg-light border mt-2 py-2 small">
-                <i class="fw-bold">Payment Mode:</i> Pay at Venue.
-            </div>
 
-            <button type="submit" class="btn bms-btn btn-lg w-100 mt-2">Confirm Booking</button>
+            <button type="submit" class="btn bms-btn btn-lg w-100 mt-2">Proceed to Payment</button>
             <p class="text-center text-muted mt-3" style="font-size: 0.8rem;">By booking, you agree to our 24-hour cancellation policy.</p>
         </form>
+    </div>
+</div>
+
+<!-- Reviews Section -->
+<div class="row bg-white p-4 rounded shadow-sm mb-5">
+    <div class="col-12">
+        <h4 class="fw-bold mb-4">User Reviews</h4>
+        {% if reviews %}
+            {% for r in reviews %}
+            <div class="mb-3 border-bottom pb-2">
+                <div class="d-flex justify-content-between">
+                    <span class="fw-bold">{{ r.user_name }}</span>
+                    <span class="text-warning">★ {{ r.rating }}/5</span>
+                </div>
+                <p class="text-muted mb-0 small">{{ r.comment }}</p>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">No reviews yet. Be the first to review after playing!</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

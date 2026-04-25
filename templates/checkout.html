@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 rounded-4 mt-4">
+            <div class="card-header bg-dark text-white text-center py-3 rounded-top-4">
+                <h4 class="m-0 fw-bold">Secure Checkout</h4>
+            </div>
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Booking Summary</h5>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Turf:</span>
+                    <span class="fw-bold">{{ booking.turf_name }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Date & Time:</span>
+                    <span>{{ booking.date }} | {{ booking.time_slot }}</span>
+                </div>
+                <hr>
+                
+                <!-- Promo Code -->
+                <form method="GET" action="/checkout" class="mb-3 d-flex">
+                    <input type="text" name="promo" class="form-control form-control-sm me-2" placeholder="Promo Code (Try WELCOME50)" value="{{ promo }}">
+                    <button type="submit" class="btn btn-dark btn-sm px-3">Apply</button>
+                </form>
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Base Price:</span>
+                    <span>₹{{ booking.price }}</span>
+                </div>
+                {% if discount > 0 %}
+                <div class="d-flex justify-content-between mb-2 text-success">
+                    <span>Discount Applied:</span>
+                    <span>- ₹{{ discount }}</span>
+                </div>
+                {% endif %}
+                <div class="d-flex justify-content-between mb-4 fs-5 fw-bold bms-text">
+                    <span>Total Amount:</span>
+                    <span>₹{{ final_price }}</span>
+                </div>
+                
+                <h6 class="fw-bold text-muted small text-uppercase mb-3">Payment Details</h6>
+                <form method="POST">
+                    <div class="mb-3">
+                        <input type="text" class="form-control bg-light" placeholder="Card Number (Mock)" required>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <input type="text" class="form-control bg-light" placeholder="MM/YY" required>
+                        </div>
+                        <div class="col-6">
+                            <input type="text" class="form-control bg-light" placeholder="CVV" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn bms-btn btn-lg w-100 fw-bold" onclick="this.innerHTML='Processing...';">Pay ₹{{ final_price }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

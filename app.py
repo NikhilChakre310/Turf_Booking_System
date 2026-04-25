@@ -4,12 +4,11 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import json
 
-# Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
-# Securely load the secret key from the environment, with a fallback for local testing
 app.secret_key = os.environ.get("SECRET_KEY", "fallback_dev_secret_key_123")
 DB_NAME = "turf.db"
 
@@ -35,9 +34,19 @@ def init_db():
                     turf_id INTEGER,
                     date TEXT NOT NULL,
                     time_slot TEXT NOT NULL,
+                    total_amount INTEGER DEFAULT 0,
+                    qr_data TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id),
                     FOREIGN KEY(turf_id) REFERENCES turfs(id))''')
     
+    c.execute('''CREATE TABLE IF NOT EXISTS reviews (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    turf_id INTEGER,
+                    rating INTEGER,
+                    comment TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                    
     c.execute("SELECT * FROM users WHERE email='admin@turf.com'")
     if not c.fetchone():
         hashed_pw = generate_password_hash(os.environ.get("ADMIN_PASSWORD", "admin123"))
@@ -55,15 +64,24 @@ def init_db():
     conn.commit()
     conn.close()
 
+def upgrade_db():
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("ALTER TABLE bookings ADD COLUMN total_amount INTEGER DEFAULT 0")
+        conn.execute("ALTER TABLE bookings ADD COLUMN qr_data TEXT")
+    except:
+        pass # Columns already exist
+    conn.commit()
+    conn.close()
+
 def get_db():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Ensure DB is initialized before first request
 with app.app_context():
-    if not os.path.exists(DB_NAME):
-        init_db()
+    init_db()
+    upgrade_db()
 
 @app.route('/')
 def index():
@@ -73,8 +91,17 @@ def index():
         turfs = conn.execute("SELECT * FROM turfs WHERE name LIKE ? OR sport LIKE ?", ('%'+search+'%', '%'+search+'%')).fetchall()
     else:
         turfs = conn.execute("SELECT * FROM turfs").fetchall()
+        
+    # Get average ratings
+    turfs_with_ratings = []
+    for t in turfs:
+        t_dict = dict(t)
+        avg = conn.execute("SELECT AVG(rating) as avg_rating FROM reviews WHERE turf_id=?", (t['id'],)).fetchone()['avg_rating']
+        t_dict['rating'] = round(avg, 1) if avg else "New"
+        turfs_with_ratings.append(t_dict)
+        
     conn.close()
-    return render_template('index.html', turfs=turfs)
+    return render_template('index.html', turfs=turfs_with_ratings)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -82,7 +109,6 @@ def register():
         name = request.form['name']
         email = request.form['email']
         password = generate_password_hash(request.form['password'])
-        
         conn = get_db()
         try:
             conn.execute("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", (name, email, password))
@@ -100,7 +126,6 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        
         conn = get_db()
         user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         conn.close()
@@ -113,7 +138,6 @@ def login():
             return redirect(url_for('index'))
         else:
             flash('Invalid credentials.', 'danger')
-            
     return render_template('login.html')
 
 @app.route('/logout')
@@ -126,6 +150,9 @@ def logout():
 def turf(id):
     conn = get_db()
     turf = conn.execute("SELECT * FROM turfs WHERE id = ?", (id,)).fetchone()
+    reviews = conn.execute('''SELECT r.*, u.name as user_name FROM reviews r 
+                              JOIN users u ON r.user_id = u.id 
+                              WHERE turf_id = ? ORDER BY created_at DESC''', (id,)).fetchall()
     
     if request.method == 'POST':
         if 'user_id' not in session:
@@ -138,12 +165,17 @@ def turf(id):
         existing = conn.execute("SELECT * FROM bookings WHERE turf_id=? AND date=? AND time_slot=?", (id, date, time_slot)).fetchone()
         if existing:
             flash('This time slot is already booked!', 'danger')
-        else:
-            conn.execute("INSERT INTO bookings (user_id, turf_id, date, time_slot) VALUES (?, ?, ?, ?)",
-                         (session['user_id'], id, date, time_slot))
-            conn.commit()
-            flash('Booking confirmed! Payment to be collected at the venue.', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('turf', id=id))
+            
+        # Store in session and go to checkout
+        session['pending_booking'] = {
+            'turf_id': id,
+            'turf_name': turf['name'],
+            'price': turf['price'],
+            'date': date,
+            'time_slot': time_slot
+        }
+        return redirect(url_for('checkout'))
             
     today = datetime.today().strftime('%Y-%m-%d')
     bookings = conn.execute("SELECT time_slot FROM bookings WHERE turf_id = ? AND date = ?", (id, today)).fetchall()
@@ -151,7 +183,56 @@ def turf(id):
     conn.close()
     
     time_slots = ["08:00 AM", "10:00 AM", "12:00 PM", "02:00 PM", "04:00 PM", "06:00 PM", "08:00 PM", "10:00 PM"]
-    return render_template('turf.html', turf=turf, time_slots=time_slots, booked_slots=booked_slots, today=today)
+    return render_template('turf.html', turf=turf, time_slots=time_slots, booked_slots=booked_slots, today=today, reviews=reviews)
+
+@app.route('/checkout', methods=['GET', 'POST'])
+def checkout():
+    if 'user_id' not in session or 'pending_booking' not in session:
+        return redirect(url_for('index'))
+        
+    booking = session['pending_booking']
+    final_price = booking['price']
+    discount = 0
+    promo = request.args.get('promo', '').upper()
+    
+    if promo == 'WELCOME50':
+        discount = final_price // 2
+        final_price -= discount
+        flash('WELCOME50 Promo applied! 50% off.', 'success')
+
+    if request.method == 'POST':
+        # Mock payment processing
+        conn = get_db()
+        qr_data = f"BMA-{session['user_id']}-{booking['turf_id']}-{booking['date']}-{booking['time_slot'].replace(' ', '')}"
+        
+        conn.execute('''INSERT INTO bookings (user_id, turf_id, date, time_slot, total_amount, qr_data) 
+                        VALUES (?, ?, ?, ?, ?, ?)''',
+                     (session['user_id'], booking['turf_id'], booking['date'], booking['time_slot'], final_price, qr_data))
+        conn.commit()
+        conn.close()
+        
+        session.pop('pending_booking', None)
+        flash('Payment Successful! Your ticket has been generated.', 'success')
+        return redirect(url_for('dashboard'))
+
+    return render_template('checkout.html', booking=booking, final_price=final_price, discount=discount, promo=promo)
+
+@app.route('/review/<int:turf_id>', methods=['POST'])
+def add_review(turf_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    rating = int(request.form['rating'])
+    comment = request.form['comment']
+    
+    conn = get_db()
+    conn.execute("INSERT INTO reviews (user_id, turf_id, rating, comment) VALUES (?, ?, ?, ?)", 
+                 (session['user_id'], turf_id, rating, comment))
+    conn.commit()
+    conn.close()
+    
+    flash('Thank you for your review!', 'success')
+    return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
 def dashboard():
@@ -159,7 +240,7 @@ def dashboard():
         return redirect(url_for('login'))
         
     conn = get_db()
-    bookings = conn.execute('''SELECT b.id, t.name, t.sport, b.date, b.time_slot, t.price 
+    bookings = conn.execute('''SELECT b.id, b.turf_id, t.name, t.sport, b.date, b.time_slot, b.total_amount, b.qr_data, t.price 
                                FROM bookings b 
                                JOIN turfs t ON b.turf_id = t.id 
                                WHERE b.user_id = ? ORDER BY b.date DESC''', (session['user_id'],)).fetchall()
@@ -176,6 +257,10 @@ def dashboard():
         except Exception:
             b_dict['is_past'] = False
             b_dict['can_cancel'] = False
+            
+        if not b_dict.get('total_amount'):
+            b_dict['total_amount'] = b_dict['price']
+            
         bookings_with_status.append(b_dict)
 
     return render_template('dashboard.html', bookings=bookings_with_status)
@@ -204,7 +289,7 @@ def cancel_booking(id):
         else:
             conn.execute("DELETE FROM bookings WHERE id = ?", (id,))
             conn.commit()
-            flash('Booking cancelled successfully.', 'success')
+            flash('Booking cancelled successfully. Refund initiated.', 'success')
     except Exception as e:
         flash('Error processing cancellation.', 'danger')
 
@@ -229,14 +314,25 @@ def admin():
         conn.commit()
         flash('Turf added successfully!', 'success')
         
-    all_bookings = conn.execute('''SELECT b.id, u.name as user_name, t.name as turf_name, b.date, b.time_slot 
+    all_bookings = conn.execute('''SELECT b.id, u.name as user_name, t.name as turf_name, b.date, b.time_slot, b.total_amount 
                                    FROM bookings b
                                    JOIN users u ON b.user_id = u.id
                                    JOIN turfs t ON b.turf_id = t.id ORDER BY b.date DESC''').fetchall()
     turfs = conn.execute("SELECT * FROM turfs").fetchall()
+    
+    # Analytics Data
+    total_revenue = conn.execute("SELECT SUM(total_amount) as total FROM bookings").fetchone()['total'] or 0
+    
+    # Bookings by Turf
+    turf_stats = conn.execute('''SELECT t.name, COUNT(b.id) as count 
+                                 FROM turfs t LEFT JOIN bookings b ON t.id = b.turf_id 
+                                 GROUP BY t.id''').fetchall()
+    chart_labels = [row['name'] for row in turf_stats]
+    chart_data = [row['count'] for row in turf_stats]
+    
     conn.close()
-    return render_template('admin.html', bookings=all_bookings, turfs=turfs)
+    return render_template('admin.html', bookings=all_bookings, turfs=turfs, 
+                           total_revenue=total_revenue, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
 
 if __name__ == '__main__':
-    # Use debug=False for production readiness
     app.run(debug=os.environ.get("FLASK_DEBUG", "False").lower() == "true")

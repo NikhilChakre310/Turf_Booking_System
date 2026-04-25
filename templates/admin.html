@@ -3,6 +3,26 @@
 {% block content %}
 <h2 class="mb-4 fw-bold">Admin Dashboard</h2>
 
+<!-- Analytics Row -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm border-0 bg-success text-white h-100">
+            <div class="card-body">
+                <h5 class="fw-bold opacity-75">Total Revenue Generated</h5>
+                <h2 class="display-5 fw-bold m-0">₹{{ total_revenue }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8 mb-3">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <h5 class="fw-bold mb-3">Bookings per Turf</h5>
+                <canvas id="turfChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <!-- Add Turf Form -->
     <div class="col-md-4 mb-4">
@@ -47,8 +67,8 @@
                             <tr>
                                 <th class="px-3">User</th>
                                 <th>Turf</th>
-                                <th>Date</th>
-                                <th>Time</th>
+                                <th>Date & Time</th>
+                                <th>Revenue</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -56,8 +76,8 @@
                             <tr>
                                 <td class="px-3 fw-bold">{{ b.user_name }}</td>
                                 <td>{{ b.turf_name }}</td>
-                                <td>{{ b.date }}</td>
-                                <td>{{ b.time_slot }}</td>
+                                <td>{{ b.date }} <br><small class="text-muted">{{ b.time_slot }}</small></td>
+                                <td class="text-success fw-bold">₹{{ b.total_amount if b.total_amount else 0 }}</td>
                             </tr>
                             {% else %}
                             <tr><td colspan="4" class="text-center py-4 text-muted">No bookings yet.</td></tr>
@@ -69,4 +89,34 @@
         </div>
     </div>
 </div>
+
+<!-- Chart.js Script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('turfChart').getContext('2d');
+    const labels = {{ chart_labels | safe }};
+    const data = {{ chart_data | safe }};
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Bookings',
+                data: data,
+                backgroundColor: '#F84464',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+</script>
 {% endblock %}

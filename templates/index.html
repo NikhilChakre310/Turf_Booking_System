@@ -32,6 +32,9 @@
                     <h5 class="card-title fw-bold m-0">{{ turf.name }}</h5>
                     <span class="badge-sport">{{ turf.sport }}</span>
                 </div>
+                <div class="mb-2 text-warning fw-bold">
+                    ★ {{ turf.rating }} <span class="text-muted fw-normal small">/ 5</span>
+                </div>
                 <p class="card-text text-muted small flex-grow-1">{{ turf.description | truncate(60) }}</p>
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <h5 class="m-0 fw-bold bms-text">₹{{ turf.price }} <span class="fs-6 text-muted fw-normal">/ hr</span></h5>
