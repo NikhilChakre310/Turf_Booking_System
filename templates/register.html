@@ -3,24 +3,25 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-5">
-        <div class="card shadow-sm mt-5">
+        <div class="card shadow border-0 mt-5 rounded-4 p-2">
             <div class="card-body p-4">
-                <h3 class="text-center mb-4">Create Account</h3>
+                <h3 class="text-center mb-4 fw-bold">Create Account</h3>
                 <form method="POST">
                     <div class="mb-3">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" class="form-control" name="name" required>
+                        <label class="form-label text-muted fw-bold small text-uppercase">Full Name</label>
+                        <input type="text" class="form-control form-control-lg bg-light" name="name" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email address</label>
-                        <input type="email" class="form-control" name="email" required>
+                        <label class="form-label text-muted fw-bold small text-uppercase">Email address</label>
+                        <input type="email" class="form-control form-control-lg bg-light" name="email" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password" required minlength="6">
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-bold small text-uppercase">Password</label>
+                        <input type="password" class="form-control form-control-lg bg-light" name="password" required minlength="6">
                     </div>
-                    <button type="submit" class="btn btn-success w-100">Sign Up</button>
+                    <button type="submit" class="btn bms-btn btn-lg w-100">Sign Up</button>
                 </form>
+                <p class="text-center mt-3 text-muted">Already have an account? <a href="/login" class="bms-text fw-bold text-decoration-none">Login</a></p>
             </div>
         </div>
     </div>

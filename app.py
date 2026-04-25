@@ -8,7 +8,6 @@ app = Flask(__name__)
 app.secret_key = "super_secret_turf_key"
 DB_NAME = "turf.db"
 
-# Initialize Database
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -43,9 +42,8 @@ def init_db():
     c.execute("SELECT * FROM turfs")
     if not c.fetchone():
         sample_turfs = [
-            ("Green Arena", "Football", 1000, "https://images.unsplash.com/photo-1529900845347-1510af14c552?auto=format&fit=crop&w=800&q=80", "Premium 5v5 football turf with artificial grass."),
-            ("Smashers Ground", "Cricket", 800, "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=800&q=80", "Box cricket turf with high nets and bright lighting."),
-            ("Elite Hoops", "Basketball", 1200, "https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80", "Indoor wooden court for professional basketball.")
+            ("Green Arena", "Football", 1000, "https://images.unsplash.com/photo-1529900845347-1510af14c552?auto=format&fit=crop&w=600&q=80", "Premium 5v5 football turf with artificial grass."),
+            ("Smashers Ground", "Cricket", 800, "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=600&q=80", "Box cricket turf with high nets and bright lighting.")
         ]
         c.executemany("INSERT INTO turfs (name, sport, price, image, description) VALUES (?, ?, ?, ?, ?)", sample_turfs)
         
@@ -157,9 +155,21 @@ def dashboard():
                                WHERE b.user_id = ? ORDER BY b.date DESC''', (session['user_id'],)).fetchall()
     conn.close()
     
-    # Pass current time to template to evaluate 24hr rule visually
+    # Calculate if cancellable (more than 24 hrs away)
     now = datetime.now()
-    return render_template('dashboard.html', bookings=bookings, now=now)
+    bookings_with_status = []
+    for b in bookings:
+        b_dict = dict(b)
+        try:
+            booking_dt = datetime.strptime(f"{b['date']} {b['time_slot']}", '%Y-%m-%d %I:%M %p')
+            b_dict['is_past'] = booking_dt < now
+            b_dict['can_cancel'] = (booking_dt - now).total_seconds() >= 24 * 3600
+        except Exception:
+            b_dict['is_past'] = False
+            b_dict['can_cancel'] = False
+        bookings_with_status.append(b_dict)
+
+    return render_template('dashboard.html', bookings=bookings_with_status)
 
 @app.route('/cancel_booking/<int:id>')
 def cancel_booking(id):
@@ -167,28 +177,28 @@ def cancel_booking(id):
         return redirect(url_for('login'))
         
     conn = get_db()
-    booking = conn.execute("SELECT date, time_slot FROM bookings WHERE id = ? AND user_id = ?", (id, session['user_id'])).fetchone()
+    booking = conn.execute("SELECT * FROM bookings WHERE id = ? AND user_id = ?", (id, session['user_id'])).fetchone()
     
-    if booking:
-        try:
-            # Parse the booking's date and time
-            booking_dt_str = f"{booking['date']} {booking['time_slot']}"
-            booking_dt = datetime.strptime(booking_dt_str, "%Y-%m-%d %I:%M %p")
-            
-            # Check if it's within 24 hours
-            time_diff = booking_dt - datetime.now()
-            
-            if time_diff.total_seconds() < 24 * 3600 and time_diff.total_seconds() > 0:
-                flash('Cancellation Failed: You cannot cancel a booking within 24 hours of the slot time.', 'danger')
-            elif time_diff.total_seconds() <= 0:
-                flash('Cancellation Failed: This booking is in the past or currently active.', 'danger')
-            else:
-                conn.execute("DELETE FROM bookings WHERE id = ?", (id,))
-                conn.commit()
-                flash('Booking cancelled successfully.', 'success')
-        except Exception as e:
-            flash('Error processing cancellation time.', 'danger')
-            
+    if not booking:
+        flash('Booking not found.', 'danger')
+        conn.close()
+        return redirect(url_for('dashboard'))
+        
+    try:
+        booking_dt = datetime.strptime(f"{booking['date']} {booking['time_slot']}", '%Y-%m-%d %I:%M %p')
+        now = datetime.now()
+        
+        if booking_dt < now:
+            flash('Cancellation Failed: This booking is already in the past.', 'danger')
+        elif (booking_dt - now).total_seconds() < 24 * 3600:
+            flash('Cancellation Failed: You cannot cancel a booking within 24 hours of the slot time.', 'danger')
+        else:
+            conn.execute("DELETE FROM bookings WHERE id = ?", (id,))
+            conn.commit()
+            flash('Booking cancelled successfully.', 'success')
+    except Exception as e:
+        flash('Error processing cancellation.', 'danger')
+
     conn.close()
     return redirect(url_for('dashboard'))
 
