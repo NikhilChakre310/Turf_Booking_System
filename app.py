@@ -11,7 +11,6 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "fallback_dev_secret_key_123")
 DB_NAME = "turf.db"
-# Get the UPI ID from environment, or use a placeholder
 BUSINESS_UPI_ID = os.environ.get("UPI_ID", "your-business-upi@ybl")
 
 def init_db():
@@ -22,11 +21,14 @@ def init_db():
                     name TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
+                    phone TEXT,
+                    loyalty_points INTEGER DEFAULT 0,
                     is_admin INTEGER DEFAULT 0)''')
     c.execute('''CREATE TABLE IF NOT EXISTS turfs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     sport TEXT NOT NULL,
+                    city TEXT DEFAULT 'Mumbai',
                     price INTEGER NOT NULL,
                     image TEXT NOT NULL,
                     description TEXT)''')
@@ -59,26 +61,28 @@ def init_db():
     c.execute("SELECT * FROM turfs")
     if not c.fetchone():
         sample_turfs = [
-            ("Green Arena", "Football", 1000, "https://images.unsplash.com/photo-1529900845347-1510af14c552?auto=format&fit=crop&w=600&q=80", "Premium 5v5 football turf with artificial grass."),
-            ("Smashers Ground", "Cricket", 800, "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=600&q=80", "Box cricket turf with high nets and bright lighting.")
+            ("Green Arena", "Football", "Mumbai", 1000, "https://images.unsplash.com/photo-1529900845347-1510af14c552?auto=format&fit=crop&w=600&q=80", "Premium 5v5 football turf with artificial grass."),
+            ("Smashers Ground", "Cricket", "Delhi", 800, "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=600&q=80", "Box cricket turf with high nets and bright lighting.")
         ]
-        c.executemany("INSERT INTO turfs (name, sport, price, image, description) VALUES (?, ?, ?, ?, ?)", sample_turfs)
+        c.executemany("INSERT INTO turfs (name, sport, city, price, image, description) VALUES (?, ?, ?, ?, ?, ?)", sample_turfs)
         
     conn.commit()
     conn.close()
 
 def upgrade_db():
     conn = sqlite3.connect(DB_NAME)
-    try:
-        conn.execute("ALTER TABLE bookings ADD COLUMN total_amount INTEGER DEFAULT 0")
-        conn.execute("ALTER TABLE bookings ADD COLUMN qr_data TEXT")
-    except:
-        pass # Columns already exist
-    
-    try:
-        conn.execute("ALTER TABLE bookings ADD COLUMN utr_number TEXT")
-    except:
-        pass # Column already exists
+    try: conn.execute("ALTER TABLE turfs ADD COLUMN city TEXT DEFAULT 'Mumbai'")
+    except: pass
+    try: conn.execute("ALTER TABLE users ADD COLUMN phone TEXT")
+    except: pass
+    try: conn.execute("ALTER TABLE users ADD COLUMN loyalty_points INTEGER DEFAULT 0")
+    except: pass
+    try: conn.execute("ALTER TABLE bookings ADD COLUMN total_amount INTEGER DEFAULT 0")
+    except: pass
+    try: conn.execute("ALTER TABLE bookings ADD COLUMN qr_data TEXT")
+    except: pass
+    try: conn.execute("ALTER TABLE bookings ADD COLUMN utr_number TEXT")
+    except: pass
     conn.commit()
     conn.close()
 
@@ -91,14 +95,37 @@ with app.app_context():
     init_db()
     upgrade_db()
 
+@app.context_processor
+def inject_cities():
+    try:
+        conn = get_db()
+        cities = [row['city'] for row in conn.execute("SELECT DISTINCT city FROM turfs WHERE city IS NOT NULL").fetchall()]
+        conn.close()
+    except:
+        cities = []
+    return dict(available_cities=cities)
+
 @app.route('/')
 def index():
     conn = get_db()
     search = request.args.get('search', '')
+    city = request.args.get('city', '')
+    category = request.args.get('category', '')
+    
+    query = "SELECT * FROM turfs WHERE 1=1"
+    params = []
+    
     if search:
-        turfs = conn.execute("SELECT * FROM turfs WHERE name LIKE ? OR sport LIKE ?", ('%'+search+'%', '%'+search+'%')).fetchall()
-    else:
-        turfs = conn.execute("SELECT * FROM turfs").fetchall()
+        query += " AND (name LIKE ? OR sport LIKE ?)"
+        params.extend(['%'+search+'%', '%'+search+'%'])
+    if city:
+        query += " AND city = ?"
+        params.append(city)
+    if category:
+        query += " AND sport = ?"
+        params.append(category)
+        
+    turfs = conn.execute(query, params).fetchall()
         
     # Get average ratings
     turfs_with_ratings = []
@@ -109,17 +136,18 @@ def index():
         turfs_with_ratings.append(t_dict)
         
     conn.close()
-    return render_template('index.html', turfs=turfs_with_ratings)
+    return render_template('index.html', turfs=turfs_with_ratings, current_city=city, current_category=category)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         name = request.form['name']
         email = request.form['email']
+        phone = request.form['phone']
         password = generate_password_hash(request.form['password'])
         conn = get_db()
         try:
-            conn.execute("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", (name, email, password))
+            conn.execute("INSERT INTO users (name, email, phone, password) VALUES (?, ?, ?, ?)", (name, email, phone, password))
             conn.commit()
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
@@ -153,6 +181,24 @@ def logout():
     session.clear()
     flash('Logged out successfully.', 'success')
     return redirect(url_for('index'))
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    conn = get_db()
+    if request.method == 'POST':
+        phone = request.form['phone']
+        name = request.form['name']
+        conn.execute("UPDATE users SET name=?, phone=? WHERE id=?", (name, phone, session['user_id']))
+        conn.commit()
+        session['name'] = name
+        flash('Profile updated successfully!', 'success')
+        
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+    conn.close()
+    return render_template('profile.html', user=user)
 
 @app.route('/turf/<int:id>', methods=['GET', 'POST'])
 def turf(id):
@@ -208,13 +254,11 @@ def checkout():
         final_price -= discount
         flash('WELCOME50 Promo applied! 50% off.', 'success')
 
-    # Generate UPI URI string
     merchant_name = "BookMyArena"
     upi_url = f"upi://pay?pa={BUSINESS_UPI_ID}&pn={merchant_name}&am={final_price}&cu=INR"
 
     if request.method == 'POST':
         utr_number = request.form.get('utr_number', '')
-        
         if not utr_number or len(utr_number) < 8:
             flash('Please enter a valid UTR / Transaction ID from your payment app.', 'danger')
             return redirect(request.url)
@@ -222,14 +266,20 @@ def checkout():
         conn = get_db()
         qr_data = f"BMA-{session['user_id']}-{booking['turf_id']}-{booking['date']}-{booking['time_slot'].replace(' ', '')}"
         
+        # Insert booking
         conn.execute('''INSERT INTO bookings (user_id, turf_id, date, time_slot, total_amount, qr_data, utr_number) 
                         VALUES (?, ?, ?, ?, ?, ?, ?)''',
                      (session['user_id'], booking['turf_id'], booking['date'], booking['time_slot'], final_price, qr_data, utr_number))
+                     
+        # Add loyalty points (5% of final price)
+        points_earned = max(1, final_price // 20)
+        conn.execute("UPDATE users SET loyalty_points = loyalty_points + ? WHERE id = ?", (points_earned, session['user_id']))
+        
         conn.commit()
         conn.close()
         
         session.pop('pending_booking', None)
-        flash('Payment Successful! Your ticket has been generated.', 'success')
+        flash(f'Payment Successful! Ticket generated. You earned {points_earned} reward points!', 'success')
         return redirect(url_for('dashboard'))
 
     return render_template('checkout.html', booking=booking, final_price=final_price, discount=discount, promo=promo, upi_url=upi_url, business_upi=BUSINESS_UPI_ID)
@@ -257,7 +307,7 @@ def dashboard():
         return redirect(url_for('login'))
         
     conn = get_db()
-    bookings = conn.execute('''SELECT b.id, b.turf_id, t.name, t.sport, b.date, b.time_slot, b.total_amount, b.qr_data, t.price 
+    bookings = conn.execute('''SELECT b.id, b.turf_id, t.name, t.sport, t.city, b.date, b.time_slot, b.total_amount, b.qr_data, t.price 
                                FROM bookings b 
                                JOIN turfs t ON b.turf_id = t.id 
                                WHERE b.user_id = ? ORDER BY b.date DESC''', (session['user_id'],)).fetchall()
@@ -304,9 +354,12 @@ def cancel_booking(id):
         elif (booking_dt - now).total_seconds() < 24 * 3600:
             flash('Cancellation Failed: You cannot cancel a booking within 24 hours of the slot time.', 'danger')
         else:
+            # Deduct loyalty points
+            points_to_deduct = max(1, booking['total_amount'] // 20) if booking['total_amount'] else 0
+            conn.execute("UPDATE users SET loyalty_points = MAX(0, loyalty_points - ?) WHERE id = ?", (points_to_deduct, session['user_id']))
             conn.execute("DELETE FROM bookings WHERE id = ?", (id,))
             conn.commit()
-            flash('Booking cancelled successfully. Refund initiated to original payment method.', 'success')
+            flash('Booking cancelled successfully. Refund initiated.', 'success')
     except Exception as e:
         flash('Error processing cancellation.', 'danger')
 
@@ -323,15 +376,16 @@ def admin():
     if request.method == 'POST':
         name = request.form['name']
         sport = request.form['sport']
+        city = request.form['city']
         price = request.form['price']
         image = request.form['image']
         desc = request.form['description']
-        conn.execute("INSERT INTO turfs (name, sport, price, image, description) VALUES (?, ?, ?, ?, ?)",
-                     (name, sport, price, image, desc))
+        conn.execute("INSERT INTO turfs (name, sport, city, price, image, description) VALUES (?, ?, ?, ?, ?, ?)",
+                     (name, sport, city, price, image, desc))
         conn.commit()
         flash('Turf added successfully!', 'success')
         
-    all_bookings = conn.execute('''SELECT b.id, u.name as user_name, t.name as turf_name, b.date, b.time_slot, b.total_amount, b.utr_number 
+    all_bookings = conn.execute('''SELECT b.id, u.name as user_name, u.phone as user_phone, t.name as turf_name, b.date, b.time_slot, b.total_amount, b.utr_number 
                                    FROM bookings b
                                    JOIN users u ON b.user_id = u.id
                                    JOIN turfs t ON b.turf_id = t.id ORDER BY b.date DESC''').fetchall()

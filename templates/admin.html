@@ -35,6 +35,10 @@
                         <input type="text" class="form-control" name="name" required>
                     </div>
                     <div class="mb-2">
+                        <label class="small fw-bold text-muted">City</label>
+                        <input type="text" class="form-control" name="city" placeholder="e.g. Mumbai" required>
+                    </div>
+                    <div class="mb-2">
                         <label class="small fw-bold text-muted">Sport</label>
                         <input type="text" class="form-control" name="sport" placeholder="e.g. Football" required>
                     </div>
@@ -65,7 +69,7 @@
                     <table class="table table-hover m-0 align-middle">
                         <thead class="bg-light">
                             <tr>
-                                <th class="px-3">User</th>
+                                <th class="px-3">User & Contact</th>
                                 <th>Turf</th>
                                 <th>Date & Time</th>
                                 <th>Revenue</th>
@@ -75,7 +79,10 @@
                         <tbody>
                             {% for b in bookings %}
                             <tr>
-                                <td class="px-3 fw-bold">{{ b.user_name }}</td>
+                                <td class="px-3">
+                                    <div class="fw-bold">{{ b.user_name }}</div>
+                                    <small class="text-muted">{{ b.user_phone if b.user_phone else 'No phone' }}</small>
+                                </td>
                                 <td>{{ b.turf_name }}</td>
                                 <td>{{ b.date }} <br><small class="text-muted">{{ b.time_slot }}</small></td>
                                 <td class="text-success fw-bold">₹{{ b.total_amount if b.total_amount else 0 }}</td>
