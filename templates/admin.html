@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="mb-4">Admin Panel</h2>
+
+<div class="row">
+    <!-- Add Turf Form -->
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white fw-bold">Add New Turf</div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-2">
+                        <label>Turf Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Sport</label>
+                        <input type="text" class="form-control" name="sport" placeholder="e.g. Football" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Price / Hr (₹)</label>
+                        <input type="number" class="form-control" name="price" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Image URL</label>
+                        <input type="url" class="form-control" name="image" placeholder="https://..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Description</label>
+                        <textarea class="form-control" name="description" rows="2" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add Turf</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Bookings -->
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white fw-bold">All Platform Bookings</div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Turf</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bookings %}
+                        <tr>
+                            <td>{{ b.user_name }}</td>
+                            <td>{{ b.turf_name }}</td>
+                            <td>{{ b.date }}</td>
+                            <td>{{ b.time_slot }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

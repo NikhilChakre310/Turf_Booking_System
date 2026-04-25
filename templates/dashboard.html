@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="mb-4">My Bookings</h2>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if bookings %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Turf Name</th>
+                        <th>Sport</th>
+                        <th>Date</th>
+                        <th>Time Slot</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bookings %}
+                    <tr>
+                        <td class="fw-bold">{{ b.name }}</td>
+                        <td>{{ b.sport }}</td>
+                        <td>{{ b.date }}</td>
+                        <td>{{ b.time_slot }}</td>
+                        <td>₹{{ b.price }}</td>
+                        <td>
+                            <a href="/cancel_booking/{{ b.id }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to cancel this booking?');">Cancel</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center my-4">You have no upcoming bookings.</p>
+        <div class="text-center">
+            <a href="/" class="btn btn-success">Browse Turfs</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
